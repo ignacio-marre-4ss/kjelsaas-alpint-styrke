@@ -7,25 +7,25 @@
 /* ===================== EXERCISE LIBRARY ===================== */
 /* Each exercise defined once; sets/reps live on the program-session link. */
 const EXERCISE_LIBRARY = {
-  front_squat: { name: "Dyp frontbøy m/stang" },
-  deadlift: { name: "Markløft" },
-  single_leg_rdl: { name: "Ettbein strakmark med hantler" },
-  bulgarian_split_bench: { name: "Bulgarsk utfall på benk m/hantler" },
-  hip_thrust: { name: "Barbell hip thrust on bench" },
-  step_up_knee_raise: { name: "Step up w/ knee raise" },
-  toes_to_bar: { name: "Toes to bar – eksentrisk" },
-  back_squat: { name: "Barbell Back Squat" },
-  nordic_hamstring: { name: "Nordic Hamstrings" },
-  hip_abduction_band: { name: "Abduction of the hip with elastic band" },
-  barbell_deadlift: { name: "Barbell Deadlift" },
-  backward_lunge: { name: "Backward lunge" },
-  calf_raise: { name: "Elevated Calf Raises" },
-  copenhagen_adduction: { name: "Modified Copenhagen Adduction on bench" },
-  vertical_squat_jump: { name: "Vertical barbell squat jump" },
-  box_jump: { name: "Box jump fra sittende, høy landing" },
-  lateral_jump: { name: "Lateral jump fra side til side" },
-  jumping_bulgarian: { name: "Jumping Bulgarian Split Squats on bench" },
-  ball_slam: { name: "Ball Slam" },
+  front_squat: { name: "Dyp frontbøy m/stang", img:"icons/exercises/front_squat.png" },
+  deadlift: { name: "Markløft", img:"icons/exercises/deadlift.png" },
+  single_leg_rdl: { name: "Ettbein strakmark med hantler", img:"icons/exercises/single_leg_rdl.png" },
+  bulgarian_split_bench: { name: "Bulgarsk utfall på benk m/hantler", img:"icons/exercises/bulgarian_split_bench.png" },
+  hip_thrust: { name: "Barbell hip thrust on bench", img:"icons/exercises/hip_thrust.png" },
+  step_up_knee_raise: { name: "Step up w/ knee raise", img:"icons/exercises/step_up_knee_raise.png" },
+  toes_to_bar: { name: "Toes to bar – eksentrisk", img:"icons/exercises/toes_to_bar.png" },
+  back_squat: { name: "Barbell Back Squat", img:"icons/exercises/back_squat.png" },
+  nordic_hamstring: { name: "Nordic Hamstrings", img:"icons/exercises/nordic_hamstring.png" },
+  hip_abduction_band: { name: "Abduction of the hip with elastic band", img:"icons/exercises/hip_abduction_band.png" },
+  barbell_deadlift: { name: "Barbell Deadlift", img:"icons/exercises/barbell_deadlift.png" },
+  backward_lunge: { name: "Backward lunge", img:"icons/exercises/backward_lunge.png" },
+  calf_raise: { name: "Elevated Calf Raises", img:"icons/exercises/calf_raise.png" },
+  copenhagen_adduction: { name: "Modified Copenhagen Adduction on bench", img:"icons/exercises/copenhagen_adduction.png" },
+  vertical_squat_jump: { name: "Vertical barbell squat jump", img:"icons/exercises/vertical_squat_jump.png" },
+  box_jump: { name: "Box jump fra sittende, høy landing", img:"icons/exercises/box_jump.png" },
+  lateral_jump: { name: "Lateral jump fra side til side", img:"icons/exercises/lateral_jump.png" },
+  jumping_bulgarian: { name: "Jumping Bulgarian Split Squats on bench", img:"icons/exercises/jumping_bulgarian.png" },
+  ball_slam: { name: "Ball Slam", img:"icons/exercises/ball_slam.png" },
   deadbug: { name: "Deadbug" },
   crunches: { name: "Crunches" },
   back_extension: { name: "Rygghev" },
@@ -35,15 +35,15 @@ const EXERCISE_LIBRARY = {
   heel_touches: { name: "Heel touches" },
   side_plank: { name: "Sideplanke" },
   v_situp: { name: "V-situps" },
-  worlds_greatest_stretch: { name: "The World's Greatest Stretch" },
-  calf_stretch: { name: "Calf 1" },
-  thigh_calf_stretch: { name: "Back of thigh and calf 6" },
-  hip_thigh_stretch: { name: "Front side thigh and hip 1" },
-  hip_flexor_stretch: { name: "Hip flexors 1" },
-  upperbody_stretch: { name: "Outside of upperbody 1" },
-  glute_stretch: { name: "Glute stretch" },
-  lumbar_rotation: { name: "Lumbar spine rotation on stomach" },
-  hip_mobilization: { name: "Mobilization hip w/ knee bent 45°" }
+  worlds_greatest_stretch: { name: "The World's Greatest Stretch", img:"icons/exercises/worlds_greatest_stretch.png" },
+  calf_stretch: { name: "Calf 1", img:"icons/exercises/calf_stretch.png" },
+  thigh_calf_stretch: { name: "Back of thigh and calf 6", img:"icons/exercises/thigh_calf_stretch.png" },
+  hip_thigh_stretch: { name: "Front side thigh and hip 1", img:"icons/exercises/hip_thigh_stretch.png" },
+  hip_flexor_stretch: { name: "Hip flexors 1", img:"icons/exercises/hip_flexor_stretch.png" },
+  upperbody_stretch: { name: "Outside of upperbody 1", img:"icons/exercises/upperbody_stretch.png" },
+  glute_stretch: { name: "Glute stretch", img:"icons/exercises/glute_stretch.png" },
+  lumbar_rotation: { name: "Lumbar spine rotation on stomach", img:"icons/exercises/lumbar_rotation.png" },
+  hip_mobilization: { name: "Mobilization hip w/ knee bent 45°", img:"icons/exercises/hip_mobilization.png" }
 };
 
 /* ===================== 1RM PROGRESSION TABLES ===================== */
@@ -676,6 +676,15 @@ function lastWeightFor(athlete, exerciseId){
   return null;
 }
 
+/* ---------- Exercise illustration + description (from sommertrening.pdf) ---------- */
+
+function showExerciseInfo(exId){
+  const lib = EXERCISE_LIBRARY[exId];
+  if(!lib || !lib.img) return;
+  document.getElementById("exerciseInfoImg").src = lib.img;
+  document.getElementById("exerciseInfoModal").classList.add("open");
+}
+
 function beep(){
   try{
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -749,10 +758,13 @@ function renderBeinstyrkeStep(){
   }
 
   const backBtn = i>0 ? `<button class="btn ghost" style="margin-bottom:6px;" onclick="prevBeinstyrkeStep()">← Forrige øvelse</button>` : "";
+  const lib = EXERCISE_LIBRARY[step.exerciseId];
+  const infoLink = lib && lib.img ? `<a class="link-btn" style="text-align:center;margin-bottom:12px;" onclick="showExerciseInfo('${step.exerciseId}')">ℹ️ Se illustrasjon og beskrivelse</a>` : "";
 
   document.getElementById("runnerBody").innerHTML = `
     <h2 class="ex-title">${step.name}</h2>
     ${RUN.session.note ? `<p class="ex-note">${RUN.session.note}</p>` : ""}
+    ${infoLink}
     ${progHtml}
     <div class="stepper-row"><div class="lbl">Sett</div>
       <div class="stepper">
@@ -994,9 +1006,12 @@ function renderMobilitetScreen(){
   setDots(1,0);
   const items = RUN.session.exercises.map((e,i)=>{
     const name = exName(e.ex);
+    const lib = EXERCISE_LIBRARY[e.ex];
+    const info = lib && lib.img ? `<button onclick="event.stopPropagation();showExerciseInfo('${e.ex}')" style="background:none;border:none;color:var(--accent);font-size:16px;flex-shrink:0;">ℹ️</button>` : "";
     return `<div class="check-item ${RUN.checked[i]?'checked':''}" onclick="toggleMobItem(${i})">
       <input type="checkbox" ${RUN.checked[i]?'checked':''} onclick="event.stopPropagation();toggleMobItem(${i})">
-      <div><div class="name">${name}</div><div class="meta" style="font-size:11.5px;color:var(--muted);">${e.meta||""}</div></div>
+      <div style="flex:1;"><div class="name">${name}</div><div class="meta" style="font-size:11.5px;color:var(--muted);">${e.meta||""}</div></div>
+      ${info}
     </div>`;
   }).join("");
   document.getElementById("runnerBody").innerHTML = `
