@@ -338,7 +338,10 @@ function renderHjem(){
       <div><div class="label">${g.label}</div><div class="sub">Mål: ${g.min===g.max ? g.min : g.min+'–'+g.max} / uke</div></div>
       <div class="progress-pill ${done?'done':''}">${count} / ${g.min===g.max ? g.min : g.max}</div>
     </div>`;
-  }).join("") + `<div style="margin-top:10px;"><button class="btn ghost" onclick="markFridag()">+ Registrer fridag</button></div>`;
+  }).join("") + `<div style="margin-top:10px;display:flex;gap:8px;">
+      <button class="btn ghost" style="flex:1;" onclick="markFridag()">+ Registrer fridag</button>
+      <button class="btn ghost" style="flex:1;" onclick="openCustomSessionModal()">+ Annen økt</button>
+    </div>`;
 
   const stats = computeStats(athlete);
   document.getElementById("statGrid").innerHTML = `
@@ -360,6 +363,31 @@ function markFridag(){
   saveState();
   toast("Fridag registrert");
   renderHjem();
+}
+
+function openCustomSessionModal(){
+  document.getElementById("customType").value = "annet";
+  document.getElementById("customName").value = "";
+  document.getElementById("customDuration").value = "";
+  document.getElementById("customNotes").value = "";
+  document.getElementById("customSessionModal").classList.add("open");
+}
+function confirmCustomSession(){
+  const athlete = activeAthlete();
+  const type = document.getElementById("customType").value;
+  const name = document.getElementById("customName").value.trim() || TYPE_LABELS[type] || "Annen økt";
+  const minutes = parseInt(document.getElementById("customDuration").value, 10) || 0;
+  const notes = document.getElementById("customNotes").value.trim();
+  if(!state.logs[athlete.id]) state.logs[athlete.id] = [];
+  state.logs[athlete.id].unshift({
+    id: uid(), date: todayISO(), timestamp: Date.now(),
+    sessionId: "custom", programId: null, name, type,
+    durationSec: minutes*60, exercises:[], notes
+  });
+  saveState();
+  closeModal("customSessionModal");
+  toast("Økt registrert");
+  render();
 }
 
 /* ===================== PROGRAM PAGE ===================== */
@@ -423,7 +451,14 @@ function renderHistory(filterText){
     html += `<div class="history-card">
       <button class="del" onclick="deleteLog('${l.id}')">Slett</button>
       <div class="top"><span class="type">${l.name || TYPE_LABELS[l.type]}</span><span class="time">${time}${durMin?' · '+durMin+' min':''}</span></div>
-      ${(l.exercises||[]).map(e=>`<div class="exline">${e.name}: ${e.weight?e.weight+' kg × ':''}${e.reps} reps${e.sets?' × '+e.sets+' sett':''}</div>`).join("")}
+      ${(l.exercises||[]).map(e=>{
+        if(Array.isArray(e.sets)){
+          const detail = e.sets.map(s=>`${s.weight||0}kg×${s.reps}`).join(", ");
+          return `<div class="exline">${e.name}: ${detail}</div>`;
+        }
+        if(e.reps==null && e.weight==null) return `<div class="exline">${e.name}</div>`;
+        return `<div class="exline">${e.name}: ${e.weight?e.weight+' kg × ':''}${e.reps} reps${e.sets?' × '+e.sets+' sett':''}</div>`;
+      }).join("")}
       ${l.meta && l.meta.activity ? `<div class="exline">${l.meta.activity}</div>` : ""}
       ${l.notes ? `<div class="notes">"${l.notes.replace(/</g,'&lt;')}"</div>` : ""}
     </div>`;
@@ -670,10 +705,35 @@ function lastWeightFor(athlete, exerciseId){
   const logs = state.logs[athlete.id] || [];
   for(const l of logs){
     for(const e of (l.exercises||[])){
-      if(e.exerciseId === exerciseId && e.weight) return e.weight;
+      if(e.exerciseId !== exerciseId) continue;
+      if(Array.isArray(e.sets) && e.sets.length){
+        const w = e.sets[e.sets.length-1].weight;
+        if(w) return w;
+      } else if(e.weight){
+        return e.weight;
+      }
     }
   }
   return null;
+}
+
+function findPreviousLog(athlete, sessionId){
+  const logs = (state.logs[athlete.id]||[]).filter(l=>l.sessionId===sessionId && (l.exercises||[]).length>0);
+  if(logs.length===0) return null;
+  return logs.slice().sort((a,b)=>b.timestamp-a.timestamp)[0];
+}
+function importWeightsFromLog(prevLog){
+  RUN.steps.forEach((step,si)=>{
+    const prevEx = (prevLog.exercises||[]).find(e=>e.exerciseId===step.exerciseId);
+    if(!prevEx) return;
+    if(Array.isArray(prevEx.sets)){
+      prevEx.sets.forEach((s,k)=>{
+        if(RUN.values[si][k] && s.weight) RUN.values[si][k].weight = s.weight;
+      });
+    } else if(prevEx.weight){
+      RUN.values[si].forEach(v=>{ v.weight = prevEx.weight; });
+    }
+  });
 }
 
 /* ---------- Exercise illustration + description (from sommertrening.pdf) ---------- */
@@ -717,100 +777,181 @@ function buildBeinstyrkeStep(athlete, exEntry){
       label: i < row.sets.length-1 ? "Oppvarming "+(i+1) : "Arbeidssett",
       pct: s.pct, reps: s.reps, weight: calcWeight(oneRM, s.pct)
     }));
-    const work = groups[groups.length-1];
     return {
       exerciseId: exEntry.ex, name: lib.name, progression:true,
       groups, tableLabel: table.label, rowLabel: (row.uke?row.uke+' ':'')+row.session,
-      sets: row.sett, reps: work.reps, weight: work.weight
+      defaultSetCount: row.sett
     };
   }
   return {
     exerciseId: exEntry.ex, name: lib.name, progression:false,
-    sets: exEntry.sets, reps: exEntry.reps,
-    weight: lastWeightFor(athlete, exEntry.ex)
+    baseReps: exEntry.reps, baseWeight: lastWeightFor(athlete, exEntry.ex) || 0,
+    defaultSetCount: exEntry.sets
   };
+}
+
+/* Page = one individual set. pageMeta() maps a page index within an exercise
+   (given the current chosen set-count) to a label + which group (warmup/work)
+   it belongs to. */
+function pageMeta(step, setCount, pageIdx){
+  if(step.progression){
+    const warmupCount = step.groups.length - 1;
+    if(pageIdx < warmupCount){
+      return {label:`Oppvarming ${pageIdx+1}/${warmupCount}`, groupIndex: pageIdx, isFirstWork:false};
+    }
+    const workIdx = pageIdx - warmupCount;
+    return {label:`Arbeidssett ${workIdx+1}/${setCount}`, groupIndex: step.groups.length-1, isFirstWork: workIdx===0};
+  }
+  return {label:`Sett ${pageIdx+1}/${setCount}`, groupIndex:null, isFirstWork: pageIdx===0};
+}
+function totalPagesForStep(step, setCount){
+  return step.progression ? (step.groups.length-1) + setCount : setCount;
+}
+function generateSetValues(step, setCount){
+  const total = totalPagesForStep(step, setCount);
+  const arr = [];
+  for(let p=0; p<total; p++){
+    const meta = pageMeta(step, setCount, p);
+    const src = step.progression ? step.groups[meta.groupIndex] : {reps:step.baseReps, weight:step.baseWeight};
+    arr.push({ reps: src.reps, weight: src.weight || 0 });
+  }
+  return arr;
 }
 
 function initBeinstyrkeRun(){
   const athlete = activeAthlete();
   RUN.steps = RUN.session.exercises.map(e=>buildBeinstyrkeStep(athlete, e));
-  RUN.stepIndex = 0;
-  RUN.values = RUN.steps.map(s=>({sets:s.sets, reps:s.reps, weight:s.weight||0}));
   RUN.usedProgression = RUN.steps.some(s=>s.progression);
-  renderBeinstyrkeStep();
+  RUN.setCounts = RUN.steps.map(s=>s.defaultSetCount);
+  RUN.values = RUN.steps.map((s,si)=>generateSetValues(s, RUN.setCounts[si]));
+  RUN.stepIndex = 0;
+  RUN.setIndex = 0;
+
+  const prevLog = findPreviousLog(athlete, RUN.session.id);
+  if(prevLog){
+    const dateLabel = fmtDateHeading(prevLog.date);
+    if(confirm(`Importere vekter (kg) fra forrige gang du gjorde denne økten (${dateLabel})?`)){
+      importWeightsFromLog(prevLog);
+    }
+  }
+  renderBeinstyrkeSet();
 }
 
-function renderBeinstyrkeStep(){
-  const i = RUN.stepIndex;
-  const step = RUN.steps[i];
-  const val = RUN.values[i];
-  document.getElementById("runnerStepLabel").textContent = `Øvelse ${i+1} / ${RUN.steps.length}`;
-  setDots(RUN.steps.length, i);
+function renderBeinstyrkeSet(){
+  const si = RUN.stepIndex, pi = RUN.setIndex;
+  const step = RUN.steps[si];
+  const setCount = RUN.setCounts[si];
+  const meta = pageMeta(step, setCount, pi);
+  const val = RUN.values[si][pi];
+  const totalPages = totalPagesForStep(step, setCount);
+
+  document.getElementById("runnerStepLabel").textContent = `Øvelse ${si+1} / ${RUN.steps.length}`;
+  setDots(RUN.steps.length, si);
 
   let progHtml = "";
   if(step.progression){
     progHtml = `<div class="progression-info">
       <div class="row"><span>${step.tableLabel} – ${step.rowLabel}</span><b></b></div>
-      ${step.groups.map(g=>`<div class="row"><span>${g.label} (${g.pct}%)</span><b>${g.weight!==null?g.weight+' kg':'–'} × ${g.reps}</b></div>`).join("")}
+      ${step.groups.map((g,gi)=>`<div class="row ${gi===meta.groupIndex?'active-row':''}"><span>${g.label} (${g.pct}%)</span><b>${g.weight!==null?g.weight+' kg':'–'} × ${g.reps}</b></div>`).join("")}
     </div>`;
-  } else if(step.weight){
-    progHtml = `<div class="progression-info"><div class="row"><span>Sist logget vekt</span><b>${step.weight} kg</b></div></div>`;
+  } else if(step.baseWeight){
+    progHtml = `<div class="progression-info"><div class="row"><span>Sist logget vekt</span><b>${step.baseWeight} kg</b></div></div>`;
   }
 
-  const backBtn = i>0 ? `<button class="btn ghost" style="margin-bottom:6px;" onclick="prevBeinstyrkeStep()">← Forrige øvelse</button>` : "";
+  const isFirstPageOfSession = (si===0 && pi===0);
+  const isNewExercise = (pi===0 && si>0);
+  const backBtn = !isFirstPageOfSession ? `<button class="btn ghost" style="margin-bottom:6px;" onclick="prevSet()">← Forrige sett</button>` : "";
   const lib = EXERCISE_LIBRARY[step.exerciseId];
   const infoLink = lib && lib.img ? `<a class="link-btn" style="text-align:center;margin-bottom:12px;" onclick="showExerciseInfo('${step.exerciseId}')">ℹ️ Se illustrasjon og beskrivelse</a>` : "";
 
+  const setCountRow = meta.isFirstWork ? `
+    <div class="stepper-row"><div class="lbl">Antall sett</div>
+      <div class="stepper">
+        <button onclick="adjSetCount(-1)">–</button>
+        <div class="val" id="val_setcount">${setCount}</div>
+        <button onclick="adjSetCount(1)">+</button>
+      </div></div>` : "";
+
+  const isLastPageOfExercise = (pi === totalPages-1);
+  const isLastStep = (si === RUN.steps.length-1);
+  let mainLabel;
+  if(isLastPageOfExercise && isLastStep) mainLabel = "Fullfør økt ✓";
+  else if(isLastPageOfExercise) mainLabel = "Fullført ✓ Neste øvelse →";
+  else mainLabel = "Neste sett →";
+
   document.getElementById("runnerBody").innerHTML = `
+    ${isNewExercise ? `<div class="set-badge" style="background:var(--navy);">→ Ny øvelse</div>` : ""}
     <h2 class="ex-title">${step.name}</h2>
+    <div class="set-badge">${meta.label}</div>
     ${RUN.session.note ? `<p class="ex-note">${RUN.session.note}</p>` : ""}
     ${infoLink}
     ${progHtml}
-    <div class="stepper-row"><div class="lbl">Sett</div>
-      <div class="stepper">
-        <button onclick="adjBeinstyrke('sets',-1)">–</button>
-        <div class="val" id="val_sets">${val.sets}</div>
-        <button onclick="adjBeinstyrke('sets',1)">+</button>
-      </div></div>
+    ${setCountRow}
     <div class="stepper-row"><div class="lbl">Reps</div>
       <div class="stepper">
-        <button onclick="adjBeinstyrke('reps',-1)">–</button>
+        <button onclick="adjSetVal('reps',-1)">–</button>
         <div class="val" id="val_reps">${val.reps}</div>
-        <button onclick="adjBeinstyrke('reps',1)">+</button>
+        <button onclick="adjSetVal('reps',1)">+</button>
       </div></div>
     <div class="stepper-row"><div class="lbl">Vekt (kg)</div>
       <div class="stepper">
-        <button onclick="adjBeinstyrke('weight',-2.5)">–</button>
+        <button onclick="adjSetVal('weight',-2.5)">–</button>
         <div class="val" id="val_weight">${val.weight}</div>
-        <button onclick="adjBeinstyrke('weight',2.5)">+</button>
+        <button onclick="adjSetVal('weight',2.5)">+</button>
       </div></div>
     ${backBtn}
-    <button class="big-btn" onclick="nextBeinstyrkeStep()">${i===RUN.steps.length-1 ? "Fullfør økt ✓" : "Fullført ✓ Neste øvelse"}</button>
+    <button class="big-btn" onclick="nextSet()">${mainLabel}</button>
   `;
 }
-function adjBeinstyrke(field, delta){
-  const val = RUN.values[RUN.stepIndex];
+function adjSetVal(field, delta){
+  const val = RUN.values[RUN.stepIndex][RUN.setIndex];
   val[field] = Math.max(0, val[field] + delta);
   document.getElementById("val_"+field).textContent = val[field];
 }
-function prevBeinstyrkeStep(){
-  if(RUN.stepIndex>0){ RUN.stepIndex--; renderBeinstyrkeStep(); }
+function adjSetCount(delta){
+  const si = RUN.stepIndex;
+  const step = RUN.steps[si];
+  const newCount = Math.max(1, RUN.setCounts[si] + delta);
+  RUN.setCounts[si] = newCount;
+  RUN.values[si] = generateSetValues(step, newCount);
+  RUN.setIndex = step.progression ? (step.groups.length-1) : 0;
+  renderBeinstyrkeSet();
 }
-function nextBeinstyrkeStep(){
-  const i = RUN.stepIndex;
-  const step = RUN.steps[i];
-  const val = RUN.values[i];
-  step.logged = {exerciseId: step.exerciseId, name: step.name, sets: val.sets, reps: val.reps, weight: val.weight};
-  if(i < RUN.steps.length-1){
+function prevSet(){
+  if(RUN.setIndex>0){
+    RUN.setIndex--;
+    renderBeinstyrkeSet();
+  } else if(RUN.stepIndex>0){
+    RUN.stepIndex--;
+    const prevStep = RUN.steps[RUN.stepIndex];
+    RUN.setIndex = totalPagesForStep(prevStep, RUN.setCounts[RUN.stepIndex]) - 1;
+    renderBeinstyrkeSet();
+  }
+}
+function nextSet(){
+  const si = RUN.stepIndex;
+  const step = RUN.steps[si];
+  const setCount = RUN.setCounts[si];
+  const totalPages = totalPagesForStep(step, setCount);
+  if(RUN.setIndex < totalPages-1){
+    RUN.setIndex++;
+    renderBeinstyrkeSet();
+  } else if(si < RUN.steps.length-1){
+    const nextName = RUN.steps[si+1].name;
     RUN.stepIndex++;
-    renderBeinstyrkeStep();
+    RUN.setIndex = 0;
+    toast("Ny øvelse: " + nextName);
+    renderBeinstyrkeSet();
   } else {
     finishBeinstyrke();
   }
 }
 function finishBeinstyrke(){
   const athlete = activeAthlete();
-  const exercises = RUN.steps.map(s=>s.logged);
+  const exercises = RUN.steps.map((step,si)=>({
+    exerciseId: step.exerciseId, name: step.name,
+    sets: RUN.values[si].map(v=>({reps:v.reps, weight:v.weight}))
+  }));
   const durationSec = Math.round((Date.now()-RUN.startedAt)/1000);
   if(!state.logs[athlete.id]) state.logs[athlete.id] = [];
   state.logs[athlete.id].unshift({
@@ -824,7 +965,9 @@ function finishBeinstyrke(){
     athlete.tableRowIndex = clamp(athlete.tableRowIndex+1, 0, table.rows.length-1);
   }
   saveState();
-  renderRunnerSummary("Beinstyrke fullført", exercises.map(e=>`${e.name}: ${e.weight?e.weight+' kg × ':''}${e.reps} reps × ${e.sets} sett`));
+  renderRunnerSummary("Beinstyrke fullført", exercises.map(e=>
+    `${e.name}: ` + e.sets.map(s=>`${s.weight||0}kg×${s.reps}`).join(", ")
+  ));
 }
 
 /* ---------- INTERVALL runner (timer engine) ---------- */

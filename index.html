@@ -130,6 +130,31 @@
   </div>
 </div>
 
+<!-- CUSTOM / FREE SESSION MODAL -->
+<div class="modal-overlay" id="customSessionModal">
+  <div class="modal">
+    <h3>Registrer annen økt</h3>
+    <label class="field-label">Type</label>
+    <select id="customType">
+      <option value="beinstyrke">Beinstyrke</option>
+      <option value="intervall">Intervall</option>
+      <option value="langtur">Rolig langkjør</option>
+      <option value="spenst">Spenst / koordinasjon</option>
+      <option value="core">Core</option>
+      <option value="mobilitet">Mobilitet</option>
+      <option value="annet" selected>Annet</option>
+    </select>
+    <label class="field-label">Navn (valgfritt)</label>
+    <input type="text" id="customName" placeholder="f.eks. Svømming">
+    <label class="field-label">Varighet i minutter (valgfritt)</label>
+    <input type="number" id="customDuration" placeholder="f.eks. 30">
+    <label class="field-label">Notater (valgfritt)</label>
+    <textarea id="customNotes" placeholder="..."></textarea>
+    <button class="btn" onclick="confirmCustomSession()">Lagre økt</button>
+    <button class="btn secondary" onclick="closeModal('customSessionModal')">Avbryt</button>
+  </div>
+</div>
+
 <!-- EXERCISE ILLUSTRATION + DESCRIPTION MODAL -->
 <div class="modal-overlay" id="exerciseInfoModal">
   <div class="modal">

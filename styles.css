@@ -197,9 +197,11 @@ nav.bottom button.active{color:var(--navy);}
 }
 .ex-title{font-size:22px;font-weight:800;color:var(--navy);margin:0 0 4px;text-align:center;}
 .ex-note{font-size:12.5px;color:var(--muted);text-align:center;margin-bottom:16px;}
+.set-badge{display:block;width:fit-content;margin:0 auto 14px;background:var(--accent);color:#fff;font-size:12.5px;font-weight:800;padding:6px 16px;border-radius:20px;letter-spacing:.2px;}
 .progression-info{background:var(--white);border-radius:14px;padding:12px 14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(15,45,92,.08);}
 .progression-info .row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;}
 .progression-info .row b{color:var(--navy);}
+.progression-info .row.active-row{background:var(--blue-light);border-radius:8px;padding-left:8px;padding-right:8px;font-weight:700;margin:0 -8px;}
 .stepper-row{display:flex;align-items:center;justify-content:space-between;background:var(--white);border-radius:14px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(15,45,92,.08);}
 .stepper-row .lbl{font-size:13.5px;font-weight:700;color:var(--navy);}
 .stepper{display:flex;align-items:center;gap:12px;}

@@ -1,0 +1,21 @@
+<svg viewBox="0 0 320 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="stripes" width="46" height="46" patternTransform="rotate(12)" patternUnits="userSpaceOnUse">
+      <rect width="46" height="46" fill="#ffffff"/>
+      <rect width="23" height="46" fill="#dbe7f5"/>
+    </pattern>
+  </defs>
+  <rect width="320" height="420" fill="url(#stripes)"/>
+  <text x="30" y="290" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="40" fill="#1d4e8f" letter-spacing="2" transform="rotate(-90 30 290)">KJELSAS</text>
+  <rect x="205" y="34" width="72" height="255" rx="36" fill="#1d4e8f"/>
+  <rect x="80" y="34" width="136" height="126" rx="34" fill="#1d4e8f"/>
+  <rect x="80" y="298" width="136" height="70" rx="35" fill="#1d4e8f"/>
+  <g fill="#ffffff" transform="translate(103,56)">
+    <circle cx="45" cy="12" r="11"/>
+    <path d="M25 39 C36 29 49 26 63 31 L99 46 L96 55 L66 43 C59 49 55 56 55 64 C55 73 61 81 72 88 L99 107 L94 116 L62 96 C49 88 41 76 41 63 C41 55 45 49 25 39 Z"/>
+    <path d="M12 99 L66 78 L71 87 L23 107 Z"/>
+    <path d="M72 62 L132 51 L134 60 L74 72 Z"/>
+    <rect x="1" y="99" width="60" height="6" rx="3"/>
+    <rect x="99" y="78" width="60" height="6" rx="3" transform="rotate(4 129 81)"/>
+  </g>
+</svg>
