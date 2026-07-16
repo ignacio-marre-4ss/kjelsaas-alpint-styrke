@@ -211,6 +211,10 @@ nav.bottom button.active{color:var(--navy);}
 .stepper button{width:36px;height:36px;border-radius:50%;border:none;background:var(--blue-light);color:var(--navy);font-size:20px;font-weight:700;}
 .stepper button:active{background:var(--blue-mid);}
 .stepper .val{min-width:46px;text-align:center;font-size:17px;font-weight:800;color:var(--navy);}
+.stepper .val-input{border:none;background:transparent;font-family:inherit;-moz-appearance:textfield;}
+.stepper .val-input::-webkit-outer-spin-button,
+.stepper .val-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.stepper .val-input:focus{outline:2px solid var(--accent);border-radius:6px;}
 .big-btn{
   width:100%;padding:18px;border:none;border-radius:16px;background:var(--navy);color:#fff;
   font-size:17px;font-weight:800;box-shadow:0 4px 14px rgba(15,45,92,.3);

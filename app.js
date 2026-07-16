@@ -177,7 +177,8 @@ const PROGRAMS = [
 
 const TYPE_LABELS = {
   beinstyrke:"Beinstyrke", intervall:"Intervall", langtur:"Rolig langkjør",
-  spenst:"Spenst / koordinasjon", core:"Core", mobilitet:"Mobilitet", annet:"Fridag"
+  spenst:"Spenst / koordinasjon", core:"Core", mobilitet:"Mobilitet", annet:"Fridag",
+  annenokt:"Annen økt"
 };
 const CATEGORY_ORDER = ["beinstyrke","intervall","langtur","spenst","core","mobilitet"];
 
@@ -204,10 +205,25 @@ function defaultAthlete(name){
   };
 }
 
+/* One-time (idempotent) migration: custom "Annen økt" entries used to be logged with
+   type:"annet" which is also what markFridag() uses for actual fridager, so they were
+   wrongly lumped into the "Fridager" week-goal count. Custom entries are identifiable
+   by sessionId==="custom" (fridager always use sessionId==="fridag"), so we can safely
+   reclassify them to their own "annenokt" type. */
+function migrateCustomAnnetType(state){
+  if(!state || !state.logs) return state;
+  Object.keys(state.logs).forEach(athleteId=>{
+    (state.logs[athleteId]||[]).forEach(l=>{
+      if(l.sessionId==="custom" && l.type==="annet") l.type = "annenokt";
+    });
+  });
+  return state;
+}
+
 function loadState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw) return JSON.parse(raw);
+    if(raw) return migrateCustomAnnetType(JSON.parse(raw));
   }catch(e){}
   const a = defaultAthlete("Meg");
   return { athletes:[a], activeId:a.id, logs:{ [a.id]: [] } };
@@ -333,6 +349,7 @@ function renderHjem(){
   const counts = {};
   WEEK_GOALS.forEach(g=>counts[g.key]=0);
   weekLogsFor(athlete).forEach(l=>{ if(counts[l.type] !== undefined) counts[l.type]++; });
+  const annenOktCount = weekLogsFor(athlete).filter(l=>l.type==="annenokt").length;
   document.getElementById("weekGoalsList").innerHTML = WEEK_GOALS.map(g=>{
     const count = counts[g.key];
     const done = count >= g.min;
@@ -340,7 +357,10 @@ function renderHjem(){
       <div><div class="label">${g.label}</div><div class="sub">Mål: ${g.min===g.max ? g.min : g.min+'–'+g.max} / uke</div></div>
       <div class="progress-pill ${done?'done':''}">${count} / ${g.min===g.max ? g.min : g.max}</div>
     </div>`;
-  }).join("") + `<div style="margin-top:10px;display:flex;gap:8px;">
+  }).join("") + `<div class="goal-row">
+      <div><div class="label">Annen økt</div><div class="sub">Ingen ukemål satt av treneren</div></div>
+      <div class="progress-pill">${annenOktCount}</div>
+    </div>` + `<div style="margin-top:10px;display:flex;gap:8px;">
       <button class="btn ghost" style="flex:1;" onclick="markFridag()">+ Registrer fridag</button>
       <button class="btn ghost" style="flex:1;" onclick="openCustomSessionModal()">+ Annen økt</button>
     </div>`;
@@ -368,7 +388,7 @@ function markFridag(){
 }
 
 function openCustomSessionModal(){
-  document.getElementById("customType").value = "annet";
+  document.getElementById("customType").value = "annenokt";
   document.getElementById("customName").value = "";
   document.getElementById("customDuration").value = "";
   document.getElementById("customNotes").value = "";
@@ -811,7 +831,7 @@ function importBackup(evt){
         return;
       }
       if(!confirm("Dette erstatter all nåværende treningsdata på denne enheten med innholdet i backup-filen. Fortsette?")) return;
-      state = parsed;
+      state = migrateCustomAnnetType(parsed);
       saveState();
       activeStrengthTable = null;
       updateAthleteBtn();
@@ -1060,7 +1080,7 @@ function renderBeinstyrkeSet(){
     <div class="stepper-row"><div class="lbl">Vekt (kg) – ${meta.shortLabel}</div>
       <div class="stepper">
         <button onclick="adjSetVal('weight',-2.5)">–</button>
-        <div class="val" id="val_weight">${val.weight}</div>
+        <input class="val val-input" id="val_weight" type="number" inputmode="decimal" step="2.5" min="0" value="${val.weight}" onfocus="this.select()" oninput="onWeightInput(this.value)" onblur="onWeightBlur()">
         <button onclick="adjSetVal('weight',2.5)">+</button>
       </div></div>
     ${backBtn}
@@ -1070,6 +1090,27 @@ function renderBeinstyrkeSet(){
 function adjSetVal(field, delta){
   const val = RUN.values[RUN.stepIndex][RUN.setIndex];
   val[field] = Math.max(0, val[field] + delta);
+  renderBeinstyrkeSet();
+}
+function onWeightInput(strVal){
+  const v = parseFloat(strVal);
+  if(isNaN(v)) return;
+  RUN.values[RUN.stepIndex][RUN.setIndex].weight = v;
+  updateProgressionLiveWeight(v);
+}
+function updateProgressionLiveWeight(v){
+  const step = RUN.steps[RUN.stepIndex];
+  if(!step.progression) return;
+  const activeRow = document.querySelector("#runnerBody .progression-info .row.active-row b");
+  if(!activeRow) return;
+  const setCount = RUN.setCounts[RUN.stepIndex];
+  const meta = pageMeta(step, setCount, RUN.setIndex);
+  const reps = step.groups[meta.groupIndex].reps;
+  activeRow.textContent = `${v} kg × ${reps}`;
+}
+function onWeightBlur(){
+  const val = RUN.values[RUN.stepIndex][RUN.setIndex];
+  if(isNaN(val.weight) || val.weight < 0) val.weight = 0;
   renderBeinstyrkeSet();
 }
 function adjSetCount(delta){
