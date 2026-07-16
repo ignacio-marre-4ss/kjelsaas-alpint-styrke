@@ -92,6 +92,24 @@
       <div id="advanceTableWrap"></div>
     </div>
 
+    <div class="card">
+      <h3>Backup og deling</h3>
+      <p class="hint">Del treningshistorikken din med treneren din, eller ta vare på en backup du kan gjenopprette senere eller flytte til en annen enhet.</p>
+      <label class="field-label">Periode å dele</label>
+      <select id="shareRangeSelect">
+        <option value="7">Siste 7 dager</option>
+        <option value="28" selected>Siste 4 uker</option>
+        <option value="90">Siste 3 måneder</option>
+        <option value="all">Hele historikken</option>
+      </select>
+      <button class="btn" onclick="shareHistoryWithCoach()">📤 Del med trener</button>
+      <button class="btn secondary" onclick="downloadHistoryText()">⬇️ Last ned som tekstfil</button>
+      <label class="field-label" style="margin-top:16px;">Backup (alle utøvere, alle data)</label>
+      <button class="btn secondary" onclick="exportBackup()">⬇️ Eksporter backup (JSON)</button>
+      <button class="btn ghost" onclick="document.getElementById('importFileInput').click()">⬆️ Importer backup (JSON)</button>
+      <input type="file" id="importFileInput" accept="application/json,.json" style="display:none;" onchange="importBackup(event)">
+    </div>
+
     <div class="card" style="text-align:center;">
       <img src="icons/wordmark.png" alt="Kjelsås Alpint" style="width:140px;border-radius:14px;margin-bottom:10px;">
       <h3>Om appen</h3>

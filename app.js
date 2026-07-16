@@ -422,9 +422,18 @@ document.addEventListener("DOMContentLoaded", ()=>{
   if(search) search.addEventListener("input", ()=>renderHistory(search.value));
 });
 
+function sortLogsByDate(logs){
+  return logs.slice().sort((a,b)=>{
+    if(a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return b.timestamp - a.timestamp;
+  });
+}
+
+let editingDateLogId = null;
+
 function renderHistory(filterText){
   const athlete = activeAthlete();
-  let logs = (state.logs[athlete.id]||[]).slice().sort((a,b)=>b.timestamp-a.timestamp);
+  let logs = sortLogsByDate(state.logs[athlete.id]||[]);
   const f = (filterText||"").trim().toLowerCase();
   if(f){
     logs = logs.filter(l=>{
@@ -448,9 +457,15 @@ function renderHistory(filterText){
     }
     const time = new Date(l.timestamp).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'});
     const durMin = l.durationSec ? Math.round(l.durationSec/60) : null;
+    const isEditingDate = editingDateLogId === l.id;
     html += `<div class="history-card">
       <button class="del" onclick="deleteLog('${l.id}')">Slett</button>
-      <div class="top"><span class="type">${l.name || TYPE_LABELS[l.type]}</span><span class="time">${time}${durMin?' · '+durMin+' min':''}</span></div>
+      <div class="top"><span class="type">${l.name || TYPE_LABELS[l.type]}</span><span class="time">${time}${durMin?' · '+durMin+' min':''} <button class="edit-date-btn" onclick="toggleEditDate('${l.id}')">✏️ dato</button></span></div>
+      ${isEditingDate ? `<div class="date-edit-row">
+        <input type="date" id="dateEdit_${l.id}" value="${l.date}">
+        <button class="btn secondary" style="width:auto;flex-shrink:0;margin-top:0;" onclick="saveLogDate('${l.id}')">Lagre</button>
+        <button class="btn ghost" style="width:auto;flex-shrink:0;margin-top:0;" onclick="toggleEditDate('${l.id}')">Avbryt</button>
+      </div>` : ""}
       ${(l.exercises||[]).map(e=>{
         if(Array.isArray(e.sets)){
           const detail = e.sets.map(s=>`${s.weight||0}kg×${s.reps}`).join(", ");
@@ -471,6 +486,22 @@ function deleteLog(id){
   state.logs[athlete.id] = (state.logs[athlete.id]||[]).filter(l=>l.id!==id);
   saveState();
   renderHistory(document.getElementById("historySearch").value);
+}
+
+function toggleEditDate(logId){
+  editingDateLogId = (editingDateLogId === logId) ? null : logId;
+  renderHistory(document.getElementById("historySearch").value);
+}
+function saveLogDate(logId){
+  const athlete = activeAthlete();
+  const log = (state.logs[athlete.id]||[]).find(l=>l.id===logId);
+  const input = document.getElementById("dateEdit_"+logId);
+  if(!log || !input || !input.value){ toast("Ugyldig dato"); return; }
+  log.date = input.value;
+  editingDateLogId = null;
+  saveState();
+  renderHistory(document.getElementById("historySearch").value);
+  toast("Dato oppdatert");
 }
 
 /* ===================== SETTINGS PAGE ===================== */
@@ -665,6 +696,131 @@ function resetAllData(){
   }
 }
 
+/* ===================== BACKUP / SHARE ===================== */
+
+function periodStartDate(rangeVal){
+  if(rangeVal === "all") return null;
+  const d = new Date();
+  d.setDate(d.getDate() - parseInt(rangeVal,10) + 1);
+  return d.toISOString().slice(0,10);
+}
+function logsInRange(athlete, rangeVal){
+  const logs = sortLogsByDate(state.logs[athlete.id]||[]);
+  const start = periodStartDate(rangeVal);
+  return start ? logs.filter(l=>l.date >= start) : logs;
+}
+function exerciseLineText(e){
+  if(Array.isArray(e.sets)){
+    return `  - ${e.name}: ` + e.sets.map(s=>`${s.weight||0}kg×${s.reps}`).join(", ");
+  }
+  if(e.reps==null && e.weight==null) return `  - ${e.name}`;
+  return `  - ${e.name}: ${e.weight?e.weight+' kg × ':''}${e.reps} reps${e.sets?' × '+e.sets+' sett':''}`;
+}
+function rangeLabelFor(rangeVal){
+  if(rangeVal==="all") return "Hele historikken";
+  if(rangeVal==="7") return "Siste 7 dager";
+  if(rangeVal==="28") return "Siste 4 uker";
+  if(rangeVal==="90") return "Siste 3 måneder";
+  return "Valgt periode";
+}
+function buildHistoryReportText(athlete, rangeVal){
+  const logs = logsInRange(athlete, rangeVal);
+  let out = `Treningslogg – ${athlete.name}\nPeriode: ${rangeLabelFor(rangeVal)}\nGenerert: ${fmtDateHeading(todayISO())}\n`;
+  if(logs.length===0){
+    out += "\nIngen treningsøkter registrert i denne perioden.\n";
+    return out;
+  }
+  let lastDate = null;
+  logs.forEach(l=>{
+    if(l.date !== lastDate){
+      out += `\n${fmtDateHeading(l.date)}\n`;
+      lastDate = l.date;
+    }
+    const durMin = l.durationSec ? Math.round(l.durationSec/60) : null;
+    out += `• ${l.name || TYPE_LABELS[l.type]}${durMin?' ('+durMin+' min)':''}\n`;
+    (l.exercises||[]).forEach(e=>{ out += exerciseLineText(e) + "\n"; });
+    if(l.meta && l.meta.activity) out += `  - ${l.meta.activity}\n`;
+    if(l.notes) out += `  Notat: "${l.notes}"\n`;
+  });
+  return out;
+}
+function getShareRangeValue(){
+  const el = document.getElementById("shareRangeSelect");
+  return el ? el.value : "28";
+}
+function downloadFile(fileName, text, mime){
+  const blob = new Blob([text], {type:(mime||"text/plain")+";charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+async function shareHistoryWithCoach(){
+  const athlete = activeAthlete();
+  const range = getShareRangeValue();
+  const text = buildHistoryReportText(athlete, range);
+  const fileName = `treningslogg-${athlete.name.replace(/\s+/g,'_')}-${todayISO()}.txt`;
+  if(navigator.share){
+    try{
+      if(navigator.canShare && typeof File !== "undefined"){
+        const file = new File([text], fileName, {type:"text/plain"});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({ files:[file], title:"Treningslogg", text:"Treningslogg fra Kjelsås Alpint Styrke" });
+          return;
+        }
+      }
+      await navigator.share({ title:"Treningslogg", text });
+      return;
+    }catch(e){
+      if(e && e.name === "AbortError") return;
+      /* fall through to download */
+    }
+  }
+  downloadFile(fileName, text, "text/plain");
+  toast("Deling ikke støttet i denne nettleseren – lastet ned som tekstfil i stedet");
+}
+function downloadHistoryText(){
+  const athlete = activeAthlete();
+  const range = getShareRangeValue();
+  const text = buildHistoryReportText(athlete, range);
+  const fileName = `treningslogg-${athlete.name.replace(/\s+/g,'_')}-${todayISO()}.txt`;
+  downloadFile(fileName, text, "text/plain");
+  toast("Tekstfil lastet ned");
+}
+function exportBackup(){
+  const text = JSON.stringify(state, null, 2);
+  downloadFile(`kjelsaas-alpint-styrke-backup-${todayISO()}.json`, text, "application/json");
+  toast("Backup lastet ned");
+}
+function importBackup(evt){
+  const file = evt.target.files && evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed || !Array.isArray(parsed.athletes) || !parsed.logs || !parsed.activeId){
+        toast("Ugyldig backup-fil");
+        return;
+      }
+      if(!confirm("Dette erstatter all nåværende treningsdata på denne enheten med innholdet i backup-filen. Fortsette?")) return;
+      state = parsed;
+      saveState();
+      activeStrengthTable = null;
+      updateAthleteBtn();
+      render();
+      toast("Backup importert");
+    }catch(e){
+      toast("Kunne ikke lese filen som en gyldig backup");
+    }
+  };
+  reader.readAsText(file);
+  evt.target.value = "";
+}
+
 /* ===================== SESSION RUNNER ===================== */
 
 let RUN = null;
@@ -702,7 +858,7 @@ function exitRunner(force){
 }
 
 function lastWeightFor(athlete, exerciseId){
-  const logs = state.logs[athlete.id] || [];
+  const logs = sortLogsByDate(state.logs[athlete.id] || []);
   for(const l of logs){
     for(const e of (l.exercises||[])){
       if(e.exerciseId !== exerciseId) continue;
@@ -720,7 +876,7 @@ function lastWeightFor(athlete, exerciseId){
 function findPreviousLog(athlete, sessionId){
   const logs = (state.logs[athlete.id]||[]).filter(l=>l.sessionId===sessionId && (l.exercises||[]).length>0);
   if(logs.length===0) return null;
-  return logs.slice().sort((a,b)=>b.timestamp-a.timestamp)[0];
+  return sortLogsByDate(logs)[0];
 }
 function importWeightsFromLog(prevLog){
   RUN.steps.forEach((step,si)=>{
@@ -797,12 +953,12 @@ function pageMeta(step, setCount, pageIdx){
   if(step.progression){
     const warmupCount = step.groups.length - 1;
     if(pageIdx < warmupCount){
-      return {label:`Oppvarming ${pageIdx+1}/${warmupCount}`, groupIndex: pageIdx, isFirstWork:false};
+      return {label:`Oppvarming ${pageIdx+1}/${warmupCount}`, shortLabel:"Oppvarming", groupIndex: pageIdx, isFirstWork:false};
     }
     const workIdx = pageIdx - warmupCount;
-    return {label:`Arbeidssett ${workIdx+1}/${setCount}`, groupIndex: step.groups.length-1, isFirstWork: workIdx===0};
+    return {label:`Arbeidssett ${workIdx+1}/${setCount}`, shortLabel:"Arbeidssett", groupIndex: step.groups.length-1, isFirstWork: workIdx===0};
   }
-  return {label:`Sett ${pageIdx+1}/${setCount}`, groupIndex:null, isFirstWork: pageIdx===0};
+  return {label:`Sett ${pageIdx+1}/${setCount}`, shortLabel:"Sett", groupIndex:null, isFirstWork: pageIdx===0};
 }
 function totalPagesForStep(step, setCount){
   return step.progression ? (step.groups.length-1) + setCount : setCount;
@@ -852,7 +1008,11 @@ function renderBeinstyrkeSet(){
   if(step.progression){
     progHtml = `<div class="progression-info">
       <div class="row"><span>${step.tableLabel} – ${step.rowLabel}</span><b></b></div>
-      ${step.groups.map((g,gi)=>`<div class="row ${gi===meta.groupIndex?'active-row':''}"><span>${g.label} (${g.pct}%)</span><b>${g.weight!==null?g.weight+' kg':'–'} × ${g.reps}</b></div>`).join("")}
+      ${step.groups.map((g,gi)=>{
+        const isActive = gi===meta.groupIndex;
+        const displayWeight = isActive ? val.weight : g.weight;
+        return `<div class="row ${isActive?'active-row':''}"><span>${g.label} (${g.pct}%)</span><b>${displayWeight!==null && displayWeight!==undefined ? displayWeight+' kg':'–'} × ${g.reps}</b></div>`;
+      }).join("")}
     </div>`;
   } else if(step.baseWeight){
     progHtml = `<div class="progression-info"><div class="row"><span>Sist logget vekt</span><b>${step.baseWeight} kg</b></div></div>`;
@@ -893,7 +1053,7 @@ function renderBeinstyrkeSet(){
         <div class="val" id="val_reps">${val.reps}</div>
         <button onclick="adjSetVal('reps',1)">+</button>
       </div></div>
-    <div class="stepper-row"><div class="lbl">Vekt (kg)</div>
+    <div class="stepper-row"><div class="lbl">Vekt (kg) – ${meta.shortLabel}</div>
       <div class="stepper">
         <button onclick="adjSetVal('weight',-2.5)">–</button>
         <div class="val" id="val_weight">${val.weight}</div>
@@ -906,7 +1066,7 @@ function renderBeinstyrkeSet(){
 function adjSetVal(field, delta){
   const val = RUN.values[RUN.stepIndex][RUN.setIndex];
   val[field] = Math.max(0, val[field] + delta);
-  document.getElementById("val_"+field).textContent = val[field];
+  renderBeinstyrkeSet();
 }
 function adjSetCount(delta){
   const si = RUN.stepIndex;

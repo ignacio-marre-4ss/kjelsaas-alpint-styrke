@@ -1,4 +1,4 @@
-const CACHE = "kjelsaas-alpint-styrke-v5";
+const CACHE = "kjelsaas-alpint-styrke-v7";
 const ASSETS = [
   "./index.html",
   "./styles.css",
