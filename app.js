@@ -1,8 +1,10 @@
 /* =================================================================
-   KJELSÅS ALPINT STYRKE — v1.0
+   KJELSÅS ALPINT STYRKE — v1.5
    All content sourced directly from sommertrening.pdf and
    Vekttabell_Styrke_1_MAL_NTG.xlsx. No AI-generated sessions.
    ================================================================= */
+
+const APP_VERSION = "v1.5";
 
 /* ===================== EXERCISE LIBRARY ===================== */
 /* Each exercise defined once; sets/reps live on the program-session link. */
@@ -262,7 +264,7 @@ function goTo(page){
   render();
 }
 function render(){
-  document.getElementById("dateLabel").textContent = new Date().toLocaleDateString('nb-NO',{weekday:'long', day:'numeric', month:'long'});
+  document.getElementById("dateLabel").textContent = new Date().toLocaleDateString('nb-NO',{weekday:'long', day:'numeric', month:'long'}) + " · " + APP_VERSION;
   if(currentPage==="hjem") renderHjem();
   if(currentPage==="program") renderProgram();
   if(currentPage==="historikk") renderHistory(document.getElementById("historySearch").value);
@@ -529,6 +531,8 @@ function renderSettings(){
   renderProgressionStatus();
   renderStrengthTable();
   renderChecklist();
+  const aboutVer = document.getElementById("aboutVersionLine");
+  if(aboutVer) aboutVer.textContent = "Versjon: " + APP_VERSION;
 }
 
 function renderAthleteChip(a, inModal){
