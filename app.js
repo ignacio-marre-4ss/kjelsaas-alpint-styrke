@@ -1,10 +1,10 @@
 /* =================================================================
-   KJELSÅS ALPINT STYRKE — v1.5
+   KJELSÅS ALPINT STYRKE — v1.9
    All content sourced directly from sommertrening.pdf and
    Vekttabell_Styrke_1_MAL_NTG.xlsx. No AI-generated sessions.
    ================================================================= */
 
-const APP_VERSION = "v1.5";
+const APP_VERSION = "v1.9";
 
 /* ===================== EXERCISE LIBRARY ===================== */
 /* Each exercise defined once; sets/reps live on the program-session link. */
