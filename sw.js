@@ -1,8 +1,8 @@
-const CACHE = "kjelsaas-alpint-styrke-v12";
+const CACHE = "kjelsaas-alpint-styrke-v13";
 const ASSETS = [
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=1.10",
+  "./app.js?v=1.10",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -37,6 +37,4 @@ self.addEventListener("fetch", (e) => {
         })
         .catch(() => cached);
       return cached || fetchPromise;
-    })
-  );
-});
+  
